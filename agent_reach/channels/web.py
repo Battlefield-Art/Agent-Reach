@@ -55,7 +55,7 @@ def _has_scrapling() -> bool:
 def _has_stealth_fetcher() -> bool:
     """Check if Scrapling StealthyFetcher is available (browser installed)."""
     try:
-        from scrapling.fetcher import StealthyFetcher
+        from scrapling import StealthyFetcher
 
         # Try to instantiate to verify browser binaries are present
         fetcher = StealthyFetcher()
@@ -149,7 +149,7 @@ class WebChannel(Channel):
 
     def _read_with_scrapling_fetcher(self, url: str) -> str:
         """Fallback: Read via Scrapling Fetcher (stealthy headers)."""
-        from scrapling.fetcher import Fetcher
+        from scrapling import Fetcher
 
         if not url.startswith(("http://", "https://")):
             url = "https://" + url
@@ -159,7 +159,7 @@ class WebChannel(Channel):
 
     def _read_with_scrapling_stealth(self, url: str) -> str:
         """Stealth path: Read via Scrapling StealthyFetcher (headless browser)."""
-        from scrapling.fetcher import StealthyFetcher
+        from scrapling import StealthyFetcher
 
         if not url.startswith(("http://", "https://")):
             url = "https://" + url
@@ -173,7 +173,7 @@ class WebChannel(Channel):
         Uses Scrapling's DynamicFetcher connected to Lightpanda's CDP endpoint.
         Falls back to StealthyFetcher if Lightpanda fails.
         """
-        from scrapling.fetcher import DynamicFetcher
+        from scrapling import DynamicFetcher
 
         if not url.startswith(("http://", "https://")):
             url = "https://" + url

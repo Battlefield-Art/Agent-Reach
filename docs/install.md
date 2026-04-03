@@ -395,7 +395,7 @@ After installation, use upstream tools directly. See SKILL.md for the full comma
 | Bilibili | `yt-dlp` + `bili` | `bili hot` / `bili search "query" --type video` |
 | Reddit | `rdt` | `rdt search "query"` / `rdt read POST_ID` |
 | GitHub | `gh` | `gh search repos "query"` |
-| Web | `curl` + Jina | `curl -s "https://r.jina.ai/URL"` |
+| Web | `curl` + Jina / Scrapling / Lightpanda | `curl -s "https://r.jina.ai/URL"` or `agent-reach fetch URL --mode=stealth` |
 | Exa Search | `mcporter` | `mcporter call 'exa.web_search_exa(...)'` |
 | 小红书 | `mcporter` | `mcporter call 'xiaohongshu.search_feeds(...)'` |
 | 微博 | `mcporter` | `mcporter call 'weibo.get_trendings(limit: 10)'` |
@@ -403,3 +403,20 @@ After installation, use upstream tools directly. See SKILL.md for the full comma
 | 抖音 | `mcporter` | `mcporter call 'douyin.parse_douyin_video_info(...)'` |
 | LinkedIn | `mcporter` | `mcporter call 'linkedin.get_person_profile(...)'` |
 | RSS | `feedparser` | `python3 -c "import feedparser; ..."` |
+
+## Browser Backends
+
+Agent Reach supports multiple browser backends for web fetching:
+
+### Camoufox (via Scrapling)
+[Camoufox](https://github.com/daijro/camoufox) installs automatically when you run `scrapling install`. It provides stealth browser capabilities for bypassing Cloudflare and other anti-bot measures.
+
+### Lightpanda (optional, recommended for servers)
+[Lightpanda](https://lightpanda.io/) is an optional but recommended browser backend for server deployments. It's **11x faster** than traditional headless browsers.
+
+**Quick start with Docker:**
+```bash
+docker run -d --name lightpanda -p 9222:9222 lightpanda/browser:nightly
+```
+
+**Privacy note:** Set `LIGHTPANDA_DISABLE_TELEMETRY=true` to disable telemetry.
