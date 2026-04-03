@@ -62,6 +62,8 @@ Update Agent Reach: https://raw.githubusercontent.com/Panniantong/agent-reach/ma
 | Platform | Capabilities | Setup | Notes |
 |----------|-------------|:-----:|-------|
 | 🌐 **Web** | Read | Zero config | Any URL → clean Markdown ([Jina Reader](https://github.com/jina-ai/reader) ⭐9.8K) |
+| 🌐 **Web (anti-bot)** | Cloudflare bypass, client-side paywalls | — | Auto-detected, falls back to Scrapling |
+| 🏛️ **UAE Gov Portals** | MOHRE, FTA, DED auto-detected | — | Always stealth mode |
 | 🐦 **Twitter/X** | Read · Search | Cookie | Cookie unlocks search, timeline, tweet reading, articles ([twitter-cli](https://github.com/public-clis/twitter-cli)) |
 | 📕 **XiaoHongShu** | Read · Search · **Post · Comment · Like** | Cookie | `pipx install xiaohongshu-cli` + `xhs login` ([xhs-cli](https://github.com/jackwener/xiaohongshu-cli)) |
 | 🎵 **Douyin** | Video parsing · Watermark-free download | mcporter | Via [douyin-mcp-server](https://github.com/yzfly/douyin-mcp-server), no login needed |
@@ -195,7 +197,10 @@ Each platform maps to an upstream tool. **Don't like one? Swap it out.**
 
 ```
 channels/
-├── web.py          → Jina Reader     ← swap to Firecrawl, Crawl4AI…
+├── web.py          → Jina Reader (fast) + Scrapling fallback (anti-bot)
+│                    + StealthyFetcher (Cloudflare bypass)
+│                    + Lightpanda optional (11x faster browser via Docker)
+│                    ← swap to Firecrawl, Crawl4AI…
 ├── twitter.py      → twitter-cli      ← swap to official API…
 ├── youtube.py      → yt-dlp          ← swap to YouTube API, Whisper…
 ├── github.py       → gh CLI          ← swap to REST API, PyGithub…
@@ -215,7 +220,7 @@ Each channel file only checks whether its upstream tool is installed and working
 
 | Scenario | Tool | Why |
 |----------|------|-----|
-| Read web pages | [Jina Reader](https://github.com/jina-ai/reader) | 9.8K stars, free, no API key needed |
+| Read web pages | [Jina Reader](https://github.com/jina-ai/reader) (Tier 1) + Scrapling (Tier 2-3) + Lightpanda (Tier 4) | Multi-layer anti-bot: Jina default, Scrapling stealth, Lightpanda 11x faster |
 | Read tweets | [twitter-cli](https://github.com/public-clis/twitter-cli) | 2.1K stars, cookie auth, search/read/timeline/articles |
 | Reddit | [rdt-cli](https://github.com/public-clis/rdt-cli) | 304 stars, no login needed, search + full posts + comments |
 | Video subtitles + search | [yt-dlp](https://github.com/yt-dlp/yt-dlp) | 154K stars, YouTube + Bilibili + 1800 sites |
@@ -229,6 +234,22 @@ Each channel file only checks whether its upstream tool is installed and working
 | WeChat Articles | [Exa](https://exa.ai) (search + read) + [Camoufox](https://github.com/daijro/camoufox) (optional) | Zero-config search + full article reading |
 | Weibo | `mcporter` | `mcporter call 'weibo.get_trendings(limit: 10)'` |
 | Xiaoyuzhou Podcast | `transcribe.sh` | `bash ~/.agent-reach/tools/xiaoyuzhou/transcribe.sh <URL>` |
+
+### Web Fetching Tiers
+
+The web channel uses automatic fallback to handle various anti-bot scenarios:
+
+| Tier | Method | Features | Trigger |
+|------|--------|----------|---------|
+| **Tier 1** | Jina Reader | Default, fastest, no browser needed | Regular websites |
+| **Tier 2** | Scrapling Fetcher | Stealth headers, lightweight | When Jina fails |
+| **Tier 3** | StealthyFetcher (Camoufox) | Cloudflare bypass, JS rendering | `--stealth` flag or UAE gov sites |
+| **Tier 4** | Lightpanda + Scrapling | Optional, 11x faster, needs Docker | When Lightpanda service detected |
+
+**Features:**
+- **Auto-fallback**: Silently drops to next tier when upper tier fails
+- **UAE government sites**: MOHRE, FTA, DED auto-detected, skip to stealth mode
+- **Lightpanda optional**: Run `lightpanda/browser:nightly` via Docker, auto-detected and preferred
 
 > 📌 These are the *current* choices. Don't like one? Swap out the file. That's the whole point of scaffolding.
 
