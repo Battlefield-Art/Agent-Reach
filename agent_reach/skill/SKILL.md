@@ -51,7 +51,7 @@ metadata:
 # Exa 网页搜索
 mcporter call 'exa.web_search_exa(query: "query", numResults: 5)'
 
-# 通用网页阅读
+# 通用网页阅读（默认 Jina Reader）
 curl -s "https://r.jina.ai/URL"
 
 # GitHub 搜索
@@ -72,6 +72,42 @@ rdt read POST_ID
 # V2EX 热门
 curl -s "https://www.v2ex.com/api/topics/hot.json" -H "User-Agent: agent-reach/1.0"
 ```
+
+## 网页阅读策略
+
+### 默认模式（Jina Reader）
+
+大多数网页直接使用 Jina Reader（免费、无需配置）：
+
+```bash
+curl -s "https://r.jina.ai/https://example.com/article"
+```
+
+### 反爬模式（Stealth）
+
+对于 Cloudflare 保护或主动拦截机器人的网站，使用 Scrapling StealthyFetcher：
+
+```python
+from agent_reach.channels.web import WebChannel
+
+ch = WebChannel()
+# 强制使用 stealth 模式
+content = ch.read("https://protected-site.com", stealth=True)
+# 或使用便捷方法
+content = ch.read_stealth("https://protected-site.com")
+```
+
+### 自动回退
+
+如果 Jina Reader 失败，会自动尝试 Scrapling Fetcher，最后尝试 StealthyFetcher。
+
+### 特殊站点：UAE 政府门户
+
+以下站点总是自动使用 stealth 模式（无需手动指定）：
+- MOHRE (mohre.gov.ae) — 阿联酋人力资源部
+- FTA (tax.gov.ae) — 联邦税务局
+- DED (ded.ae, dubaided.gov.ae) — 迪拜经济发展部
+- ADCB (adbc.gov.ae) — 阿布扎比商业中心
 
 ## 环境检查
 

@@ -2,7 +2,7 @@
 
 通用网页、微信公众号、RSS。
 
-## 通用网页 (Jina Reader)
+## 通用网页 (Jina Reader) — 默认
 
 ```bash
 # 读取任意网页内容
@@ -13,6 +13,63 @@ curl -s "https://r.jina.ai/https://example.com/article"
 ```
 
 **适用场景**: 大多数网页可以直接用 Jina Reader 读取。
+
+## 反爬模式 (Scrapling StealthyFetcher)
+
+用于 Cloudflare 保护或主动拦截机器人的网站。
+
+### Python API
+
+```python
+from agent_reach.channels.web import WebChannel
+
+ch = WebChannel()
+
+# 方法1: 使用 stealth 参数
+content = ch.read("https://protected-site.com", stealth=True)
+
+# 方法2: 使用便捷方法
+content = ch.read_stealth("https://protected-site.com")
+```
+
+### CLI 检测
+
+```bash
+# 检查 stealth 模式是否可用
+agent-reach doctor
+# 查看 "网页 (反爬)" 状态
+```
+
+**适用场景**:
+- Cloudflare 保护的网站
+- 返回 403/验证码的页面
+- UAE 政府门户（自动触发）
+
+## 自动回退策略
+
+WebChannel 采用三级回退：
+
+1. **Fast Path**: Jina Reader（最快，无浏览器）
+2. **Fallback**: Scrapling Fetcher（伪装 headers）
+3. **Stealth Path**: Scrapling StealthyFetcher（无头浏览器）
+
+如果 Jina Reader 失败，会自动尝试后续方案，无需手动干预。
+
+## 特殊站点：UAE 政府门户
+
+以下站点**自动使用 stealth 模式**（无需手动指定）：
+
+| 站点 | 域名 | 说明 |
+|-----|------|------|
+| MOHRE | mohre.gov.ae | 阿联酋人力资源部 |
+| FTA | tax.gov.ae | 联邦税务局 |
+| DED | ded.ae, dubaided.gov.ae | 迪拜经济发展部 |
+| ADCB | adbc.gov.ae | 阿布扎比商业中心 |
+
+```python
+# 这些 URL 会自动触发 stealth 模式
+ch.read("https://www.mohre.gov.ae")  # 自动 stealth
+```
 
 ## Web Reader (MCP)
 
@@ -70,7 +127,9 @@ for e in feedparser.parse('FEED_URL').entries[:5]:
 | 场景 | 推荐工具 |
 |-----|---------|
 | 通用网页 | Jina Reader (`curl r.jina.ai`) |
+| Cloudflare/反爬 | Scrapling StealthyFetcher (`stealth=True`) |
 | 需要图片/格式控制 | web-reader MCP |
 | 微信公众号 | Exa (搜索+阅读) / Camoufox (可选阅读) |
 | RSS 订阅 | feedparser |
 | 微博/知乎等 | Jina Reader |
+| UAE 政府门户 | 自动 stealth 模式 |
