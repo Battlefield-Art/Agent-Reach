@@ -37,7 +37,7 @@ content = ch.read_stealth("https://protected-site.com")
 ```bash
 # 检查 stealth 模式是否可用
 agent-reach doctor
-# 查看 "网页 (反爬)" 状态
+# 查看 "网页 (反爬)" 和 "网页 (浏览器)" 状态
 ```
 
 **适用场景**:
@@ -47,13 +47,52 @@ agent-reach doctor
 
 ## 自动回退策略
 
-WebChannel 采用三级回退：
+WebChannel 采用四级回退：
 
-1. **Fast Path**: Jina Reader（最快，无浏览器）
-2. **Fallback**: Scrapling Fetcher（伪装 headers）
-3. **Stealth Path**: Scrapling StealthyFetcher（无头浏览器）
+1. **Tier 1**: Jina Reader（最快，无浏览器）
+2. **Tier 2**: Scrapling Fetcher（伪装 headers）
+3. **Tier 3**: StealthyFetcher（Camoufox，Cloudflare 绕过）
+4. **Tier 4**: Lightpanda CDP（最快浏览器，可选）
 
 如果 Jina Reader 失败，会自动尝试后续方案，无需手动干预。
+
+## Lightpanda 浏览器（服务器/VPS 推荐）
+
+Lightpanda 是一个开源 headless 浏览器（Zig 编写），比 Chrome 快 11 倍，内存占用少 9 倍。
+
+### 自动启动
+
+如果 Docker 可用，`agent-reach install` 会自动启动 Lightpanda 容器：
+
+```bash
+# 容器配置
+镜像：lightpanda/browser:nightly
+CDP 端口：9222
+遥测：默认禁用（隐私保护）
+```
+
+### 手动启动
+
+```bash
+docker run -d --name lightpanda -p 9222:9222 -e LIGHTPANDA_DISABLE_TELEMETRY=true lightpanda/browser:nightly
+```
+
+### 环境变量
+
+```bash
+# 自定义 Lightpanda 地址（默认: ws://localhost:9222）
+export LIGHTPANDA_URL=ws://localhost:9222
+
+# 禁用遥测（默认: true）
+export LIGHTPANDA_DISABLE_TELEMETRY=true
+```
+
+### 注意事项
+
+- Lightpanda 在 Termux/ARM Android 上不可用，自动使用 Camoufox 回退
+- 端口 9222 仅内部使用，不对外暴露
+- 仍处于 beta 阶段（~95% 兼容性）
+- 如果 Lightpanda 连接失败，自动回退到 StealthyFetcher
 
 ## 特殊站点：UAE 政府门户
 

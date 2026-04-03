@@ -41,6 +41,21 @@ def _check_scrapling_stealth() -> Tuple[bool, str]:
         return False, f"浏览器未安装（运行 scrapling install）"
 
 
+def _check_lightpanda() -> Tuple[bool, str]:
+    """Check Lightpanda CDP availability.
+
+    Returns (available, status_message).
+    """
+    try:
+        from agent_reach.channels.web import _has_lightpanda
+
+        if _has_lightpanda():
+            return True, "Lightpanda 可用"
+        return False, "Lightpanda 未运行"
+    except Exception as e:
+        return False, f"Lightpanda 检查失败: {e}"
+
+
 def format_report(results: Dict[str, dict]) -> str:
     """Format results as a readable text report (with Rich markup)."""
     try:
@@ -57,13 +72,14 @@ def format_report(results: Dict[str, dict]) -> str:
 
     # Check scrapling stealth status for web channel display
     scrapling_stealth_ok, scrapling_stealth_msg = _check_scrapling_stealth()
+    lightpanda_ok, lightpanda_msg = _check_lightpanda()
 
     # Tier 0 — zero config
     lines.append("")
     lines.append("[bold]✅ 装好即用：[/bold]")
     for key, r in results.items():
         if r["tier"] == 0:
-            # Special handling for web channel - split into two lines
+            # Special handling for web channel - split into multiple lines
             if key == "web":
                 # Line 1: Jina Reader (always available)
                 jina_msg = "[bold]网页 (快速)[/bold] — Jina Reader"
@@ -76,6 +92,14 @@ def format_report(results: Dict[str, dict]) -> str:
                 else:
                     stealth_msg = f"[bold]网页 (反爬)[/bold] — Scrapling {scrapling_stealth_msg}"
                     lines.append(f"  [yellow][!][/yellow]  {stealth_msg}")
+
+                # Line 3: Lightpanda browser backend
+                if lightpanda_ok:
+                    lightpanda_line = "[bold]网页 (浏览器)[/bold] — Lightpanda on port 9222"
+                    lines.append(f"  [green]✅[/green] {lightpanda_line}")
+                else:
+                    lightpanda_line = f"[bold]网页 (浏览器)[/bold] — Lightpanda 未运行，使用 Camoufox 回退"
+                    lines.append(f"  [yellow][!][/yellow]  {lightpanda_line}")
             else:
                 name_msg = f"[bold]{escape(r['name'])}[/bold] — {escape(r['message'])}"
                 if r["status"] == "ok":
