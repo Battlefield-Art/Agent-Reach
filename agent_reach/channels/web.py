@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 """Web — any URL via tiered fetch strategy.
 
-- Fast path: Jina Reader (default, no browser)
-- Fallback: Scrapling Fetcher (stealthy headers, lightweight)
-- Stealth path: Scrapling StealthyFetcher (Cloudflare bypass, headless browser)
+- Tier 1: Jina Reader (default, no browser)
+- Tier 2: Scrapling Fetcher (stealthy headers, lightweight)
+- Tier 3: StealthyFetcher (Camoufox, Cloudflare bypass)
+- Tier 4: DynamicFetcher → Lightpanda CDP (fastest browser, optional)
 """
 
+import os
+import socket
 import urllib.request
 from typing import Tuple
 from .base import Channel
@@ -61,40 +64,76 @@ def _has_stealth_fetcher() -> bool:
         return False
 
 
+def _has_lightpanda() -> bool:
+    """Check if Lightpanda CDP is reachable.
+
+    Returns True if Lightpanda is running and reachable via WebSocket.
+    Checks LIGHTPANDA_URL env var or falls back to ws://localhost:9222
+    """
+    lightpanda_url = os.environ.get("LIGHTPANDA_URL", "ws://localhost:9222")
+
+    # Parse host and port from WebSocket URL
+    # ws://localhost:9222 or wss://host:port
+    try:
+        if lightpanda_url.startswith("ws://"):
+            rest = lightpanda_url[5:]  # Remove ws://
+        elif lightpanda_url.startswith("wss://"):
+            rest = lightpanda_url[6:]  # Remove wss://
+        else:
+            rest = lightpanda_url
+
+        if ":" in rest:
+            host, port_str = rest.rsplit(":", 1)
+            port = int(port_str)
+        else:
+            host = rest
+            port = 9222
+
+        # Try to connect to the port
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        result = sock.connect_ex((host, port))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
+
+
+def _get_lightpanda_url() -> str:
+    """Get Lightpanda WebSocket URL from env or default."""
+    return os.environ.get("LIGHTPANDA_URL", "ws://localhost:9222")
+
+
 class WebChannel(Channel):
     name = "web"
     description = "任意网页"
-    backends = ["Jina Reader", "Scrapling"]
+    backends = ["Jina Reader", "Scrapling", "Lightpanda"]
     tier = 0
 
     def can_handle(self, url: str) -> bool:
         return True  # Fallback — handles any URL
 
     def check(self, config=None) -> Tuple[str, str]:
-        """Check web channel availability and Scrapling status.
+        """Check web channel availability and browser backends status.
 
-        Returns status and message. Also sets scrapling_stealth field in results.
+        Returns status and message including Jina Reader, Scrapling, and Lightpanda status.
         """
         has_scrapling = _has_scrapling()
         has_stealth = _has_stealth_fetcher() if has_scrapling else False
+        has_lightpanda_running = _has_lightpanda()
+
+        # Build status message
+        parts = ["通过 Jina Reader 读取任意网页（curl https://r.jina.ai/URL）"]
 
         if has_scrapling and has_stealth:
-            return (
-                "ok",
-                "通过 Jina Reader 读取任意网页（curl https://r.jina.ai/URL），"
-                "Scrapling 反爬模式可用",
-            )
+            parts.append("Scrapling 反爬模式可用")
         elif has_scrapling:
-            return (
-                "ok",
-                "通过 Jina Reader 读取任意网页（curl https://r.jina.ai/URL），"
-                "Scrapling 已安装但浏览器未初始化（运行 scrapling install）",
-            )
-        else:
-            return (
-                "ok",
-                "通过 Jina Reader 读取任意网页（curl https://r.jina.ai/URL）",
-            )
+            parts.append("Scrapling 已安装但浏览器未初始化（运行 scrapling install）")
+
+        if has_lightpanda_running:
+            parts.append("Lightpanda CDP 可用")
+
+        return ("ok", "，".join(parts))
 
     def _read_with_jina(self, url: str) -> str:
         """Fast path: Read via Jina Reader."""
@@ -128,38 +167,72 @@ class WebChannel(Channel):
         response = fetcher.get(url)
         return response.text
 
+    def _read_with_lightpanda(self, url: str) -> str:
+        """Tier 4: Read via Lightpanda CDP (fastest browser backend).
+
+        Uses Scrapling's DynamicFetcher connected to Lightpanda's CDP endpoint.
+        Falls back to StealthyFetcher if Lightpanda fails.
+        """
+        from scrapling.fetcher import DynamicFetcher
+
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
+
+        lightpanda_url = _get_lightpanda_url()
+        fetcher = DynamicFetcher(browserWSEndpoint=lightpanda_url)
+        response = fetcher.get(url)
+        return response.text
+
+    def _try_lightpanda_or_fallback(self, url: str) -> str:
+        """Try Lightpanda, fall back to StealthyFetcher if unavailable or fails."""
+        if _has_lightpanda():
+            try:
+                return self._read_with_lightpanda(url)
+            except Exception:
+                # Lightpanda failed, fall through to StealthyFetcher
+                pass
+
+        # Fallback to StealthyFetcher
+        if _has_stealth_fetcher():
+            return self._read_with_scrapling_stealth(url)
+        raise RuntimeError("No browser backend available (Lightpanda not running, StealthyFetcher not installed)")
+
     def read(self, url: str, stealth: bool = False) -> str:
-        """通过 Jina Reader 或 Scrapling 读取网页，返回 Markdown 全文。
+        """通过 tiered strategy 读取网页，返回 Markdown 全文。
+
+        Tier 1: Jina Reader (fastest, no browser)
+        Tier 2: Scrapling Fetcher (stealthy headers)
+        Tier 3: StealthyFetcher (Camoufox, Cloudflare bypass)
+        Tier 4: Lightpanda CDP (fastest browser, optional)
 
         Args:
             url: The URL to fetch
-            stealth: Force use of StealthyFetcher (for Cloudflare-protected sites)
+            stealth: Force use of browser backend (Lightpanda > StealthyFetcher)
 
         Returns:
             The page content as text/markdown
         """
-        # UAE government portals always require stealth mode
+        # UAE government portals always require browser mode
         if _is_uae_gov_portal(url):
             stealth = True
 
-        # Stealth path: directly use StealthyFetcher
-        if stealth and _has_stealth_fetcher():
-            return self._read_with_scrapling_stealth(url)
+        # Stealth path: use browser backend (Lightpanda preferred)
+        if stealth:
+            return self._try_lightpanda_or_fallback(url)
 
-        # Try fast path (Jina Reader)
+        # Tier 1: Fast path (Jina Reader)
         try:
             return self._read_with_jina(url)
         except Exception:
-            # Auto-fallback to Scrapling Fetcher if Jina fails
+            # Tier 2: Scrapling Fetcher
             if _has_scrapling():
                 try:
                     return self._read_with_scrapling_fetcher(url)
                 except Exception:
-                    # Final fallback to StealthyFetcher
-                    if _has_stealth_fetcher():
-                        return self._read_with_scrapling_stealth(url)
-                    raise
-            raise
+                    # Tier 4/3: Browser backends (Lightpanda preferred)
+                    return self._try_lightpanda_or_fallback(url)
+            # No Scrapling, try browser backends directly
+            return self._try_lightpanda_or_fallback(url)
 
     def read_stealth(self, url: str) -> str:
         """Read with StealthyFetcher (convenience method for anti-bot sites)."""

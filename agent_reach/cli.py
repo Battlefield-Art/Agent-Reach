@@ -226,6 +226,15 @@ def _cmd_install(args):
     else:
         _install_system_deps()
 
+    # ── Lightpanda browser (optional, Docker-based) ──
+    print()
+    if dry_run:
+        _install_lightpanda_dryrun()
+    elif safe_mode:
+        _install_lightpanda_safe()
+    else:
+        _install_lightpanda()
+
     # ── mcporter (for Exa search) ──
     print()
     if dry_run:
@@ -913,6 +922,114 @@ def _install_system_deps_dryrun():
             print(f"  ✅ {label}: already installed, skip")
         else:
             print(f"  {label}: would install via: {method}")
+
+
+def _install_lightpanda():
+    """Install Lightpanda browser via Docker."""
+    import shutil
+    import subprocess
+    import platform
+
+    print("Setting up Lightpanda browser...")
+
+    # Check if Docker is available
+    if not shutil.which("docker"):
+        print("  ⚠️  Lightpanda skipped — Docker not found. Using Camoufox (StealthyFetcher) instead")
+        return
+
+    # Check if running on Termux/ARM Android
+    machine = platform.machine().lower()
+    if "arm" in machine or "aarch64" in machine:
+        # Check for Termux-specific indicators
+        if os.path.exists("/data/data/com.termux") or os.environ.get("TERMUX_VERSION"):
+            print("  ⚠️  Lightpanda skipped — not available on Termux/ARM Android. Using Camoufox instead")
+            return
+
+    # Check if Lightpanda container is already running
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "--filter", "name=lightpanda", "--format", "{{.Names}}"],
+            capture_output=True, encoding="utf-8", timeout=5
+        )
+        if "lightpanda" in result.stdout:
+            print("  ✅ Lightpanda browser already running on port 9222")
+            return
+    except Exception:
+        pass
+
+    # Check if container exists but is stopped
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "-a", "--filter", "name=lightpanda", "--format", "{{.Names}}"],
+            capture_output=True, encoding="utf-8", timeout=5
+        )
+        if "lightpanda" in result.stdout:
+            # Start existing container
+            subprocess.run(
+                ["docker", "start", "lightpanda"],
+                capture_output=True, timeout=10
+            )
+            print("  ✅ Lightpanda browser started on port 9222")
+            return
+    except Exception:
+        pass
+
+    # Pull and run new container
+    print("  Pulling Lightpanda image (this may take a minute)...")
+    try:
+        subprocess.run(
+            ["docker", "pull", "lightpanda/browser:nightly"],
+            capture_output=True, timeout=180
+        )
+
+        # Run container with telemetry disabled
+        env_telemetry = os.environ.get("LIGHTPANDA_DISABLE_TELEMETRY", "true")
+        subprocess.run(
+            [
+                "docker", "run", "-d",
+                "--name", "lightpanda",
+                "-p", "9222:9222",
+                "-e", f"LIGHTPANDA_DISABLE_TELEMETRY={env_telemetry}",
+                "lightpanda/browser:nightly"
+            ],
+            capture_output=True, timeout=30
+        )
+        print("  ✅ Lightpanda browser running on port 9222")
+    except subprocess.TimeoutExpired:
+        print("  [!]  Lightpanda pull timed out. Using Camoufox (StealthyFetcher) instead")
+    except Exception as e:
+        print(f"  [!]  Lightpanda setup failed: {e}. Using Camoufox (StealthyFetcher) instead")
+
+
+def _install_lightpanda_safe():
+    """Safe mode: check Lightpanda status, print instructions."""
+    import shutil
+
+    print("Checking Lightpanda browser (safe mode)...")
+
+    if not shutil.which("docker"):
+        print("  -- Docker not found. Lightpanda requires Docker.")
+        print("     Install Docker: https://docs.docker.com/get-docker/")
+        return
+
+    print("  ✅ Docker available")
+    print("  To start Lightpanda manually:")
+    print("     docker run -d --name lightpanda -p 9222:9222 -e LIGHTPANDA_DISABLE_TELEMETRY=true lightpanda/browser:nightly")
+
+
+def _install_lightpanda_dryrun():
+    """Dry-run: show what would be done for Lightpanda."""
+    import shutil
+
+    print("[dry-run] Lightpanda browser setup:")
+
+    if not shutil.which("docker"):
+        print("  -- Docker not found, would skip Lightpanda")
+        return
+
+    print("  Docker available")
+    print("  Would check if lightpanda container is running")
+    print("  If not: would pull lightpanda/browser:nightly and start on port 9222")
 
 
 

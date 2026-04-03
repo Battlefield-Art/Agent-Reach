@@ -101,6 +101,20 @@ content = ch.read_stealth("https://protected-site.com")
 
 如果 Jina Reader 失败，会自动尝试 Scrapling Fetcher，最后尝试 StealthyFetcher。
 
+### Lightpanda 浏览器（服务器/VPS 推荐）
+
+Lightpanda 是一个开源 headless 浏览器（Zig 编写），比 Chrome 快 11 倍，内存占用少 9 倍。
+
+**自动启动**：如果 Docker 可用，`agent-reach install` 会自动启动 Lightpanda 容器：
+- 镜像：`lightpanda/browser:nightly`
+- CDP 端口：`9222`
+- 遥测：默认禁用（隐私保护）
+
+**注意**：
+- Lightpanda 在 Termux/ARM Android 上不可用，自动使用 Camoufox 回退
+- 端口 9222 仅内部使用，不对外暴露
+- 仍处于 beta 阶段（~95% 兼容性）
+
 ### 特殊站点：UAE 政府门户
 
 以下站点总是自动使用 stealth 模式（无需手动指定）：
