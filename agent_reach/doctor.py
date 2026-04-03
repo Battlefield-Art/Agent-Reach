@@ -4,7 +4,7 @@
 Each channel knows how to check itself. Doctor just collects the results.
 """
 
-from typing import Dict
+from typing import Dict, Tuple
 from agent_reach.config import Config
 from agent_reach.channels import get_all_channels
 
@@ -24,6 +24,23 @@ def check_all(config: Config) -> Dict[str, dict]:
     return results
 
 
+def _check_scrapling_stealth() -> Tuple[bool, str]:
+    """Check Scrapling StealthyFetcher availability.
+
+    Returns (available, status_message).
+    """
+    try:
+        from scrapling.fetcher import StealthyFetcher
+
+        # Try to instantiate to verify browser binaries are present
+        StealthyFetcher()
+        return True, "StealthyFetcher 可用"
+    except ImportError:
+        return False, "Scrapling 未安装"
+    except Exception as e:
+        return False, f"浏览器未安装（运行 scrapling install）"
+
+
 def format_report(results: Dict[str, dict]) -> str:
     """Format results as a readable text report (with Rich markup)."""
     try:
@@ -38,18 +55,35 @@ def format_report(results: Dict[str, dict]) -> str:
     ok_count = sum(1 for r in results.values() if r["status"] == "ok")
     total = len(results)
 
+    # Check scrapling stealth status for web channel display
+    scrapling_stealth_ok, scrapling_stealth_msg = _check_scrapling_stealth()
+
     # Tier 0 — zero config
     lines.append("")
     lines.append("[bold]✅ 装好即用：[/bold]")
     for key, r in results.items():
         if r["tier"] == 0:
-            name_msg = f"[bold]{escape(r['name'])}[/bold] — {escape(r['message'])}"
-            if r["status"] == "ok":
-                lines.append(f"  [green]✅[/green] {name_msg}")
-            elif r["status"] == "warn":
-                lines.append(f"  [yellow][!][/yellow]  {name_msg}")
-            elif r["status"] in ("off", "error"):
-                lines.append(f"  [red][X][/red]  {name_msg}")
+            # Special handling for web channel - split into two lines
+            if key == "web":
+                # Line 1: Jina Reader (always available)
+                jina_msg = "[bold]网页 (快速)[/bold] — Jina Reader"
+                lines.append(f"  [green]✅[/green] {jina_msg}")
+
+                # Line 2: Scrapling StealthyFetcher
+                if scrapling_stealth_ok:
+                    stealth_msg = "[bold]网页 (反爬)[/bold] — Scrapling StealthyFetcher"
+                    lines.append(f"  [green]✅[/green] {stealth_msg}")
+                else:
+                    stealth_msg = f"[bold]网页 (反爬)[/bold] — Scrapling {scrapling_stealth_msg}"
+                    lines.append(f"  [yellow][!][/yellow]  {stealth_msg}")
+            else:
+                name_msg = f"[bold]{escape(r['name'])}[/bold] — {escape(r['message'])}"
+                if r["status"] == "ok":
+                    lines.append(f"  [green]✅[/green] {name_msg}")
+                elif r["status"] == "warn":
+                    lines.append(f"  [yellow][!][/yellow]  {name_msg}")
+                elif r["status"] in ("off", "error"):
+                    lines.append(f"  [red][X][/red]  {name_msg}")
 
     # Tier 1 — needs free key / login
     tier1 = {k: r for k, r in results.items() if r["tier"] == 1}

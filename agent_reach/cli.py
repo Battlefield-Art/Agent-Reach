@@ -581,6 +581,35 @@ def _install_system_deps():
             except Exception:
                 print("  -- Could not configure yt-dlp JS runtime (YouTube may not work)")
 
+    # ── scrapling (browser binaries for web stealth mode) ──
+    try:
+        import scrapling  # noqa: F401
+
+        # Check if browser binaries are installed by trying to instantiate StealthyFetcher
+        try:
+            from scrapling.fetcher import StealthyFetcher
+            StealthyFetcher()
+            print("  ✅ scrapling browsers already installed")
+        except Exception:
+            print("  Installing scrapling browsers...")
+            try:
+                subprocess.run(
+                    [sys.executable, "-m", "scrapling", "install"],
+                    capture_output=True,
+                    timeout=120,
+                )
+                # Verify installation
+                try:
+                    from scrapling.fetcher import StealthyFetcher
+                    StealthyFetcher()
+                    print("  ✅ scrapling browsers installed")
+                except Exception:
+                    print("  -- scrapling install incomplete (optional — run: scrapling install)")
+            except Exception:
+                print("  -- scrapling install failed (optional — run: scrapling install)")
+    except ImportError:
+        print("  -- scrapling not installed (optional — pip install 'scrapling[fetchers]')")
+
     # NOTE: twitter-cli, weibo, xiaoyuzhou, wechat, xhs-cli etc. are optional.
     # They are installed via --channels flag, not here.
     # See CHANNEL_INSTALLERS in _cmd_install().
